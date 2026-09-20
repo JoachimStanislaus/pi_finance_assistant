@@ -1,6 +1,7 @@
 import pandas as pd
 
 from helper import add_data_to_csv, create_csv_file_if_not_exists, today_date
+from pi_finance_assistant import EXPENSE_FIELDS
 
 #decorator for is_job_executed
 def job_executed(job_name:str):
@@ -46,6 +47,7 @@ def update_expenses_from_history():
     Updates the expenses.csv file with new data from history.csv
     """
     history_df = pd.read_csv('classifier/datasets/history.csv')
+    create_csv_file_if_not_exists("data/expenses.csv", EXPENSE_FIELDS)
     expenses_df = pd.read_csv('data/expenses.csv')
 
     # Give history_df the same columns as expenses df (Date,Category,Description,Amount,isShared,User,expense_id), history_df has columns (Date,Category,Description,Amount) user should be set to Joachim and expense_id should be set to None and isShared should be set to False
