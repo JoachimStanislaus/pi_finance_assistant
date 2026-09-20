@@ -1,4 +1,5 @@
 #Get today's date in integer format
+from collections.abc import Mapping
 import csv
 import os
 from turtle import pd
