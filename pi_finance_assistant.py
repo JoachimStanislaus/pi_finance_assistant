@@ -138,11 +138,7 @@ def get_expense(message, expense):
     category, isShared = resolve_fields_from_description(expense.get('description'))
     expense['category'] = category
     expense['isShared'] = isShared
-
-    # Get today's date
     expense['date'] = today_date()
-
-    # Get username
     expense['user'] = message.from_user.first_name
 
     # Append to CSV
