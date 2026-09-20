@@ -86,7 +86,15 @@ def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
             "User",
         )    
     try:
-        add_data_to_csv(file_path, expense, EXPENSE_FIELDS)
+        format_expense = {
+            "Date": expense.get("date", today_date()),
+            "Category": expense.get("category", ""),
+            "Description": expense.get("description", ""),
+            "Amount": expense.get("amount", ""),
+            "isShared": expense.get("isShared", ""),
+            "User": expense.get("user", ""),
+        }
+        add_data_to_csv(file_path, format_expense, EXPENSE_FIELDS)
         return True
         
     except Exception as e:
@@ -167,7 +175,7 @@ def get_take_home_pay(message, PROFILE_HEADERS):
 
 # Get Expense breakdown command
 # Get Expense breakdown command
-@bot.message_handler(commands=['get_expenses_breakdown'])
+@bot.message_handler(commands=['get_expenses'])
 def get_expense_breakdown(message):
     if UserCheck(message) == True:
         try:
