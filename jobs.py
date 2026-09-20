@@ -1,6 +1,6 @@
 import pandas as pd
 
-from helper import add_data_to_csv, today_date
+from helper import add_data_to_csv, create_csv_file_if_not_exists, today_date
 
 #decorator for is_job_executed
 def job_executed(job_name:str):
@@ -23,6 +23,7 @@ def is_job_executed(job_name:str):
     """
     Checks if a job has been executed before
     """
+    create_csv_file_if_not_exists("data/job_history.csv", ["job_name", "timestamp"])
     df = pd.read_csv("data/job_history.csv")
     return job_name in df['job_name'].values
 
