@@ -213,10 +213,10 @@ def get_expense_breakdown(message):
                         message.chat.id,
                         "Invalid period.\n\n"
                         "Use one of:\n"
-                        "/get_expenses_breakdown all\n"
-                        "/get_expenses_breakdown yearly\n"
-                        "/get_expenses_breakdown monthly\n"
-                        "/get_expenses_breakdown 08/26"
+                        "/get_expenses all\n"
+                        "/get_expenses yearly\n"
+                        "/get_expenses monthly\n"
+                        "/get_expenses 08/26"
                     )
                     return
             # Read expenses
