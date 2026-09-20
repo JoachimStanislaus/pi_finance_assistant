@@ -16,6 +16,28 @@ TelegramUsers = json.loads(base_tele_ids) if base_tele_ids else []
 PROFILE_HEADERS = ("Name", "Take Home Pay","Date_added")
 PROFILE_FILE_PATH = 'data/profile.csv'
 EXPENSE_FILE_PATH = 'data/expenses.csv'
+EXPENSE_FIELDS = (
+        "Date", 
+        "Category", 
+        "Description", 
+        "Amount",
+        "isShared",
+        "User",
+        "expense_id",
+    )
+CATEGORIES = ("Eating Out",
+"Groceries",
+"Transportation",
+"Travel",
+"Social",
+"Bills",
+"Shopping",
+"Dogs",
+"Gifts",
+"Grooming",
+"Health/Medical",
+"Learning"
+)
 
 
 #Get today's date in integer format
@@ -77,14 +99,6 @@ def add_data_to_csv(file_path, data: Mapping[str, str], headers: list) -> bool:
 
 def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
     """Appends a new expense record to the CSV file."""
-    EXPENSE_FIELDS = (
-            "Date", 
-            "Category", 
-            "Description", 
-            "Amount",
-            "isShared",
-            "User",
-        )    
     try:
         format_expense = {
             "Date": expense.get("date", today_date()),
@@ -93,6 +107,7 @@ def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
             "Amount": expense.get("amount", ""),
             "isShared": expense.get("isShared", ""),
             "User": expense.get("user", ""),
+            "expense_id": expense.get("id", ""),
         }
         add_data_to_csv(file_path, format_expense, EXPENSE_FIELDS)
         return True
@@ -152,10 +167,12 @@ def get_expense(message, expense):
     expense['isShared'] = isShared
     expense['date'] = today_date()
     expense['user'] = message.from_user.first_name
+    expense['id'] = generate_expense_id()
 
     # Append to CSV
     if append_expense_to_csv(EXPENSE_FILE_PATH, expense):
-        bot.send_message(message.chat.id, "Expense added successfully!")
+        bot.send_message(message.chat.id, f"Expense added successfully! (Predicted Category: {expense['category']}, if incorrect, please edit the expense manually.)")
+        bot.send_message(message.chat.id, f"/edit {expense['id']}")
     else:
         bot.send_message(message.chat.id, "Failed to add expense. Please try again.")
 
@@ -173,7 +190,151 @@ def get_take_home_pay(message, PROFILE_HEADERS):
         )
         bot.register_next_step_handler(msg, get_take_home_pay, PROFILE_HEADERS)
 
-# Get Expense breakdown command
+
+def generate_expense_id():
+    """Generates a unique ID for each expense based on the current timestamp."""
+    return datetime.now().strftime("%Y%m%d%H%M%S%f")
+
+# Edit Expense command
+@bot.message_handler(commands=['edit'])
+def edit_expense(message):
+    if UserCheck(message) == True:
+        try:
+            command_parts = message.text.split()
+
+            if len(command_parts) < 2:
+                bot.send_message(
+                    message.chat.id,
+                    "Please provide the expense ID to edit.\n"
+                    "Usage: /edit <expense_id>"
+                )
+                return
+
+            expense_id = command_parts[1]
+
+            # Read expenses
+            with open(EXPENSE_FILE_PATH, 'r') as f:
+                reader = csv.DictReader(f)
+                expenses = list(reader)
+
+            # Find the expense
+            expense_to_edit = next(
+                (e for e in expenses if e['expense_id'] == expense_id),
+                None
+            )
+
+            if not expense_to_edit:
+                bot.send_message(
+                    message.chat.id,
+                    f"No expense found with ID: {expense_id}"
+                )
+                return
+
+            # Create category buttons
+            markup = InlineKeyboardMarkup(row_width=2)
+
+            buttons = []
+
+            for category in CATEGORIES:
+                buttons.append(
+                    InlineKeyboardButton(
+                        text=category,
+                        callback_data=f"edit_category|{expense_id}|{category}"
+                    )
+                )
+
+            markup.add(*buttons)
+
+            bot.send_message(
+                message.chat.id,
+                f"Expense: {expense_to_edit['description']}\n"
+                f"Current category: {expense_to_edit['category']}\n\n"
+                f"Select the new category:",
+                reply_markup=markup
+            )
+
+        except Exception as e:
+            bot.send_message(
+                message.chat.id,
+                f"Error editing expense: {e}"
+            )
+
+
+# Handle category button selection
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("edit_category|")
+)
+def handle_edit_category(call):
+    try:
+        # Extract expense ID and category
+        _, expense_id, new_category = call.data.split("|", 2)
+
+        # Read expenses
+        with open(EXPENSE_FILE_PATH, 'r') as f:
+            reader = csv.DictReader(f)
+            expenses = list(reader)
+
+        # Find expense
+        expense_to_edit = next(
+            (e for e in expenses if e['expense_id'] == expense_id),
+            None
+        )
+
+        if not expense_to_edit:
+            bot.answer_callback_query(
+                call.id,
+                "Expense not found."
+            )
+            return
+
+        old_category = expense_to_edit['category']
+
+        # Update category
+        expense_to_edit['category'] = new_category
+
+        # Write updated expenses back to CSV
+        with open(EXPENSE_FILE_PATH, 'w', newline='') as f:
+            fieldnames = expenses[0].keys()
+
+            writer = csv.DictWriter(
+                f,
+                fieldnames=fieldnames
+            )
+
+            writer.writeheader()
+            writer.writerows(expenses)
+
+        # Remove the buttons
+        bot.edit_message_reply_markup(
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=None
+        )
+
+        # Confirm change
+        bot.answer_callback_query(
+            call.id,
+            "Category updated!"
+        )
+
+        bot.send_message(
+            call.message.chat.id,
+            f"Category updated successfully!\n\n"
+            f"Expense: {expense_to_edit['description']}\n"
+            f"Category: {old_category} → {new_category}"
+        )
+
+    except Exception as e:
+        bot.answer_callback_query(
+            call.id,
+            "Error updating category."
+        )
+
+        bot.send_message(
+            call.message.chat.id,
+            f"Error editing expense: {e}"
+        )
+
 # Get Expense breakdown command
 @bot.message_handler(commands=['get_expenses'])
 def get_expense_breakdown(message):
