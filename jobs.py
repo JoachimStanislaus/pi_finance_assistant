@@ -39,6 +39,7 @@ def execute_jobs():
     """
     update_expenses_from_history()
     remove_pound_sign_from_amount()
+    convert_amount_to_float()
     pass
 
 @job_executed("update_expenses_from_history_3")
@@ -66,4 +67,13 @@ def remove_pound_sign_from_amount():
     """
     expenses_df = pd.read_csv('data/expenses.csv')
     expenses_df['Amount'] = expenses_df['Amount'].str.replace('£', '', regex=False)
+    expenses_df.to_csv('data/expenses.csv', index=False)
+
+@job_executed("convert_amount_to_float_1")
+def convert_amount_to_float():
+    """
+    Converts the amount column in expenses.csv to float
+    """
+    expenses_df = pd.read_csv('data/expenses.csv')
+    expenses_df['Amount'] = expenses_df['Amount'].astype(float)
     expenses_df.to_csv('data/expenses.csv', index=False)
