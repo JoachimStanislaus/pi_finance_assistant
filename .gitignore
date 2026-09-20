@@ -2,3 +2,4 @@
 .venv
 update.sh
 expenses.csv
+onnx-converter

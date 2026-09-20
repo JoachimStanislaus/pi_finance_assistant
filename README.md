@@ -9,3 +9,9 @@ source .venv/bin/activate
 
 # Install all requirements
 pip install -r requirements.txt
+
+
+# for converting tensorflow model to onnx
+python -m venv onnx-converter
+source onnx-converter/bin/activate
+python -m pip install tensorflow tf2onnx onnx

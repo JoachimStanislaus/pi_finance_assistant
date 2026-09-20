@@ -6,6 +6,8 @@ pyTelegramBotAPI==4.32.0
 python-dotenv==1.2.1
 requests==2.32.5
 urllib3==2.6.3
-
+pandas
 numpy
+scikit-learn
+tensorflow
 onnxruntime
