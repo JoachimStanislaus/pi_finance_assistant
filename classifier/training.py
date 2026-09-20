@@ -1,11 +1,13 @@
 """
 Expense Category Classifier Training Pipeline
 
-Trains a CNN model to classify expense descriptions
-into expense categories.
+Trains a lightweight scikit-learn model to classify
+expense descriptions into expense categories.
 
-The model uses character n-grams, which works well for
-short expense descriptions such as:
+The model uses character-level TF-IDF features with
+Logistic Regression.
+
+Examples:
 
     "Tesco groceries"
     "Dinner at Pizza Express"
@@ -17,43 +19,31 @@ import os
 import re
 import pickle
 
-import numpy as np
 import pandas as pd
-import tensorflow as tf
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import classification_report
-
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import (
-    Embedding,
-    Conv1D,
-    GlobalMaxPooling1D,
-    Dense,
-    Dropout,
-)
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, accuracy_score
 
 
 # ============================================================
 # Configuration
 # ============================================================
 
-MAX_SEQUENCE_LENGTH = 100
-MAX_N_GRAM = 3
-EMBEDDING_DIM = 64
-
-BATCH_SIZE = 32
-EPOCHS = 50
-
-LEARNING_RATE = 0.001
-
-MODEL_PATH = "models/model.h5"
-VOCAB_PATH = "models/vocabulary.pkl"
+MODEL_PATH = "models/model.pkl"
 LABEL_ENCODER_PATH = "models/label_encoder.pkl"
+
+TEST_SIZE = 0.2
+RANDOM_STATE = 42
+
+# Character n-grams from 1 to 3 characters
+NGRAM_RANGE = (1, 3)
+
+# Maximum number of TF-IDF features
+# Keeping this reasonably small helps on the Raspberry Pi.
+MAX_FEATURES = 10000
 
 
 # ============================================================
@@ -74,139 +64,6 @@ def preprocess_text(text):
     text = re.sub(r"\s+", " ", text).strip()
 
     return text
-
-
-# ============================================================
-# Vocabulary creation
-# ============================================================
-
-def build_vocabulary(texts):
-    """
-    Build ONE vocabulary from the entire training dataset.
-
-    Character n-grams of size 1-3 are used.
-
-    Example:
-
-        "tesco"
-
-    produces:
-
-        t
-        te
-        tes
-        e
-        es
-        esc
-        s
-        sco
-        c
-        co
-        o
-    """
-
-    vocabulary = {
-        "<PAD>": 0,
-        "<UNK>": 1,
-    }
-
-    for text in texts:
-
-        for i in range(len(text)):
-
-            for n in range(1, MAX_N_GRAM + 1):
-
-                token = text[i:i + n]
-
-                if token and token not in vocabulary:
-                    vocabulary[token] = len(vocabulary)
-
-    return vocabulary
-
-
-# ============================================================
-# Convert text to token IDs
-# ============================================================
-
-def text_to_sequence(text, vocabulary):
-    """
-    Convert a description into integer token IDs.
-    """
-
-    tokens = []
-
-    for i in range(len(text)):
-
-        for n in range(1, MAX_N_GRAM + 1):
-
-            token = text[i:i + n]
-
-            if not token:
-                continue
-
-            token_id = vocabulary.get(
-                token,
-                vocabulary["<UNK>"]
-            )
-
-            tokens.append(token_id)
-
-    # Limit sequence length
-    tokens = tokens[:MAX_SEQUENCE_LENGTH]
-
-    return tokens
-
-
-# ============================================================
-# Create model
-# ============================================================
-
-def create_model(num_features, num_categories):
-
-    model = Sequential([
-        Embedding(
-            input_dim=num_features,
-            output_dim=EMBEDDING_DIM,
-            input_length=MAX_SEQUENCE_LENGTH
-        ),
-
-        Conv1D(
-            filters=128,
-            kernel_size=3,
-            activation="relu"
-        ),
-
-        Dropout(0.5),
-
-        GlobalMaxPooling1D(),
-
-        Dense(
-            64,
-            activation="relu"
-        ),
-
-        Dropout(0.5),
-
-        Dense(
-            32,
-            activation="relu"
-        ),
-
-        Dense(
-            num_categories,
-            activation="softmax"
-        )
-    ])
-
-    model.compile(
-        loss="sparse_categorical_crossentropy",
-        optimizer=Adam(
-            learning_rate=LEARNING_RATE
-        ),
-        metrics=["accuracy"]
-    )
-
-    return model
 
 
 # ============================================================
@@ -264,59 +121,15 @@ def train_classifier(csv_path):
 
     print("\nPreprocessing descriptions...")
 
-    cleaned_descriptions = []
-
-    for description in df["description"]:
-
-        cleaned = preprocess_text(
-            description
-        )
-
-        cleaned_descriptions.append(cleaned)
-
-    # --------------------------------------------------------
-    # Build vocabulary
-    # --------------------------------------------------------
-
-    print("\nBuilding vocabulary...")
-
-    vocabulary = build_vocabulary(
-        cleaned_descriptions
+    df["cleaned_description"] = (
+        df["description"]
+        .apply(preprocess_text)
     )
 
-    print(
-        f"Vocabulary size: {len(vocabulary)}"
-    )
-
-    # --------------------------------------------------------
-    # Convert descriptions to sequences
-    # --------------------------------------------------------
-
-    print("\nConverting descriptions to sequences...")
-
-    sequences = []
-
-    for description in cleaned_descriptions:
-
-        sequence = text_to_sequence(
-            description,
-            vocabulary
-        )
-
-        sequences.append(sequence)
-
-    # Pad sequences
-    X = pad_sequences(
-        sequences,
-        maxlen=MAX_SEQUENCE_LENGTH,
-        padding="post",
-        truncating="post",
-        value=vocabulary["<PAD>"]
-    )
-
-    print(
-        f"Input shape: {X.shape}"
-    )
+    # Remove descriptions that became empty
+    df = df[
+        df["cleaned_description"].str.strip() != ""
+    ]
 
     # --------------------------------------------------------
     # Encode categories
@@ -330,12 +143,8 @@ def train_classifier(csv_path):
         df["category"]
     )
 
-    num_categories = len(
-        label_encoder.classes_
-    )
-
     print(
-        f"Categories ({num_categories}):"
+        f"Categories ({len(label_encoder.classes_)}):"
     )
 
     for i, category in enumerate(
@@ -349,54 +158,67 @@ def train_classifier(csv_path):
 
     print("\nSplitting dataset...")
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
+    X_train_text, X_test_text, y_train, y_test = train_test_split(
+        df["cleaned_description"],
         y,
-        test_size=0.2,
-        random_state=42,
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
         stratify=y
     )
 
     print(
-        f"Training samples: {len(X_train)}"
+        f"Training samples: {len(X_train_text)}"
     )
 
     print(
-        f"Testing samples: {len(X_test)}"
+        f"Testing samples: {len(X_test_text)}"
     )
 
     # --------------------------------------------------------
-    # Create model
+    # TF-IDF
     # --------------------------------------------------------
 
-    print("\nCreating model...")
+    print("\nCreating TF-IDF vectorizer...")
 
-    model = create_model(
-        num_features=len(vocabulary),
-        num_categories=num_categories
+    vectorizer = TfidfVectorizer(
+        analyzer="char",
+        ngram_range=NGRAM_RANGE,
+        max_features=MAX_FEATURES,
+        lowercase=False
     )
 
-    model.summary()
+    print("\nFitting TF-IDF on training data...")
+
+    X_train = vectorizer.fit_transform(
+        X_train_text
+    )
+
+    # IMPORTANT:
+    # Only transform the test data.
+    # We do NOT fit the vectorizer on test data.
+
+    X_test = vectorizer.transform(
+        X_test_text
+    )
+
+    print(
+        f"Training feature matrix: {X_train.shape}"
+    )
+
+    print(
+        f"Testing feature matrix: {X_test.shape}"
+    )
 
     # --------------------------------------------------------
-    # Training callbacks
+    # Create classifier
     # --------------------------------------------------------
 
-    callbacks = [
+    print("\nCreating Logistic Regression model...")
 
-        EarlyStopping(
-            monitor="val_loss",
-            patience=5,
-            restore_best_weights=True
-        ),
-
-        ReduceLROnPlateau(
-            monitor="val_loss",
-            factor=0.5,
-            patience=2,
-            min_lr=1e-5
-        )
-    ]
+    model = LogisticRegression(
+        max_iter=1000,
+        random_state=RANDOM_STATE
+    )
 
     # --------------------------------------------------------
     # Train
@@ -405,22 +227,9 @@ def train_classifier(csv_path):
     print("\nTraining model...")
     print("=" * 60)
 
-    history = model.fit(
+    model.fit(
         X_train,
-        y_train,
-
-        epochs=EPOCHS,
-
-        batch_size=BATCH_SIZE,
-
-        validation_data=(
-            X_test,
-            y_test
-        ),
-
-        callbacks=callbacks,
-
-        verbose=1
+        y_train
     )
 
     # --------------------------------------------------------
@@ -432,32 +241,17 @@ def train_classifier(csv_path):
     print("Model evaluation")
     print("=" * 60)
 
-    loss, accuracy = model.evaluate(
-        X_test,
-        y_test,
-        verbose=0
+    predictions = model.predict(
+        X_test
     )
 
-    print(
-        f"Test Loss: {loss:.4f}"
+    accuracy = accuracy_score(
+        y_test,
+        predictions
     )
 
     print(
         f"Test Accuracy: {accuracy:.4f}"
-    )
-
-    # --------------------------------------------------------
-    # Detailed classification report
-    # --------------------------------------------------------
-
-    predictions = model.predict(
-        X_test,
-        verbose=0
-    )
-
-    predicted_classes = np.argmax(
-        predictions,
-        axis=1
     )
 
     print("\nClassification report:")
@@ -465,7 +259,7 @@ def train_classifier(csv_path):
     print(
         classification_report(
             y_test,
-            predicted_classes,
+            predictions,
             target_names=label_encoder.classes_,
             zero_division=0
         )
@@ -482,34 +276,24 @@ def train_classifier(csv_path):
         exist_ok=True
     )
 
-    model.save(
-        MODEL_PATH
-    )
-
-    print(
-        f"Model saved to: {MODEL_PATH}"
-    )
-
-    # --------------------------------------------------------
-    # Save vocabulary
-    # --------------------------------------------------------
+    # Save vectorizer + classifier together
+    model_data = {
+        "vectorizer": vectorizer,
+        "model": model
+    }
 
     with open(
-        VOCAB_PATH,
+        MODEL_PATH,
         "wb"
     ) as f:
 
         pickle.dump(
-            {
-                "vocabulary": vocabulary,
-                "max_sequence_length": MAX_SEQUENCE_LENGTH,
-                "max_n_gram": MAX_N_GRAM
-            },
+            model_data,
             f
         )
 
     print(
-        f"Vocabulary saved to: {VOCAB_PATH}"
+        f"Model saved to: {MODEL_PATH}"
     )
 
     # --------------------------------------------------------

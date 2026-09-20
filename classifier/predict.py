@@ -1,128 +1,124 @@
+"""
+Expense Category Prediction
+
+Loads the trained scikit-learn model and predicts
+the category of an expense description.
+"""
+
 import pickle
 import re
+
 import numpy as np
-import onnxruntime as ort
 
 
-MODEL_PATH = "models/model.onnx"
-VOCAB_PATH = "models/vocabulary.pkl"
+MODEL_PATH = "models/model.pkl"
 LABEL_ENCODER_PATH = "models/label_encoder.pkl"
 
 
-# Load ONNX model
-session = ort.InferenceSession(
+# ============================================================
+# Load model
+# ============================================================
+
+with open(
     MODEL_PATH,
-    providers=["CPUExecutionProvider"]
-)
+    "rb"
+) as f:
 
-input_name = session.get_inputs()[0].name
-output_name = session.get_outputs()[0].name
-
-
-# Load vocabulary
-with open(VOCAB_PATH, "rb") as f:
-    vocab_data = pickle.load(f)
-
-vocabulary = vocab_data["vocabulary"]
-max_sequence_length = vocab_data["max_sequence_length"]
-max_n_gram = vocab_data["max_n_gram"]
+    model_data = pickle.load(f)
 
 
+vectorizer = model_data["vectorizer"]
+model = model_data["model"]
+
+
+# ============================================================
 # Load label encoder
-with open(LABEL_ENCODER_PATH, "rb") as f:
+# ============================================================
+
+with open(
+    LABEL_ENCODER_PATH,
+    "rb"
+) as f:
+
     label_encoder = pickle.load(f)
 
 
+# ============================================================
+# Text preprocessing
+# ============================================================
+
 def preprocess_text(text):
+
     text = str(text).lower()
-    text = re.sub(r"[^a-z0-9\s]", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
+
+    text = re.sub(
+        r"[^a-z0-9\s]",
+        "",
+        text
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
     return text
 
 
-def text_to_sequence(text):
-    tokens = []
-
-    # IMPORTANT:
-    # This order should match the order used during training.
-    for i in range(len(text)):
-        for n in range(1, max_n_gram + 1):
-            token = text[i:i+n]
-
-            if not token:
-                continue
-
-            token_id = vocabulary.get(
-                token,
-                vocabulary["<UNK>"]
-            )
-
-            tokens.append(token_id)
-
-    return tokens[:max_sequence_length]
-
-
-def pad_sequence(sequence, maxlen, pad_value):
-    """
-    Equivalent to the padding we were doing with
-    tensorflow.keras.preprocessing.sequence.pad_sequences.
-    """
-
-    X = np.full(
-        (1, maxlen),
-        pad_value,
-        dtype=np.int32
-    )
-
-    sequence = sequence[:maxlen]
-
-    X[0, :len(sequence)] = sequence
-
-    return X
-
+# ============================================================
+# Prediction
+# ============================================================
 
 def predict_category(description):
 
-    # 1. Clean text
-    description = preprocess_text(description)
-
-    # 2. Convert text → token IDs
-    sequence = text_to_sequence(description)
-
-    # 3. Pad sequence
-    X = pad_sequence(
-        sequence,
-        max_sequence_length,
-        vocabulary["<PAD>"]
+    description = preprocess_text(
+        description
     )
 
-    # 4. Run ONNX model
-    probabilities = session.run(
-        [output_name],
-        {input_name: X}
-    )[0][0]
+    # Convert description into TF-IDF features
+    X = vectorizer.transform(
+        [description]
+    )
 
-    # 5. Get highest probability
-    predicted_class = int(np.argmax(probabilities))
+    # Predict category
+    predicted_class = model.predict(
+        X
+    )[0]
 
-    # 6. Convert class number → category
+    # Convert number back to category name
     category = label_encoder.inverse_transform(
         [predicted_class]
     )[0]
 
+    # Get confidence
+    probabilities = model.predict_proba(
+        X
+    )[0]
+
     confidence = float(
-        probabilities[predicted_class]
+        np.max(probabilities)
     )
 
     return category, confidence
 
 
+# ============================================================
+# Test
+# ============================================================
+
 if __name__ == "__main__":
 
-    description = "Tesco groceries"
+    while True:
 
-    category, confidence = predict_category(description)
+        description = input("\nExpense description: ")
 
-    print(f"Description: {description}")
-    print(f"Category: {category}")
-    print(f"Confidence: {confidence:.2%}")
+        if description.lower() == "quit":
+            break
+
+        category, confidence = predict_category(
+            description
+        )
+
+        print(f"Category: {category}")
+        print(f"Confidence: {confidence:.2%}")

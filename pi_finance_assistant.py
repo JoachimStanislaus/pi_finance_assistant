@@ -13,6 +13,10 @@ base_tele_ids = os.getenv("BASE_TELE_USER_ID")
 
 bot = telebot.TeleBot(os.getenv("TELE_API_KEY"))
 TelegramUsers = json.loads(base_tele_ids) if base_tele_ids else []
+PROFILE_HEADERS = ("Name", "Take Home Pay","Date_added")
+PROFILE_FILE_PATH = 'data/profile.csv'
+EXPENSE_FILE_PATH = 'data/expenses.csv'
+
 
 #Get today's date in integer format
 def today_date():
@@ -142,41 +146,212 @@ def get_expense(message, expense):
     expense['user'] = message.from_user.first_name
 
     # Append to CSV
-    if append_expense_to_csv('data/expenses.csv', expense):
+    if append_expense_to_csv(EXPENSE_FILE_PATH, expense):
         bot.send_message(message.chat.id, "Expense added successfully!")
     else:
         bot.send_message(message.chat.id, "Failed to add expense. Please try again.")
 
-def get_take_home_pay(message, profile_file_path, PROFILE_HEADERS):
+def get_take_home_pay(message, PROFILE_HEADERS):
     try:
         take_home_pay = float(message.text)
         # Update the profile.csv with the take home pay and date added
         date_added = today_date()
-        add_data_to_csv(profile_file_path, {"Name": message.from_user.first_name, "Take Home Pay": take_home_pay, "Date_added": date_added}, PROFILE_HEADERS)
+        add_data_to_csv(PROFILE_FILE_PATH, {"Name": message.from_user.first_name, "Take Home Pay": take_home_pay, "Date_added": date_added}, PROFILE_HEADERS)
         bot.send_message(message.chat.id, "Profile updated successfully!")
     except ValueError:
         msg = bot.send_message(
             message.chat.id,
             "Please enter a valid amount for take home pay, e.g. 2500.00"
         )
-        bot.register_next_step_handler(msg, get_take_home_pay, profile_file_path, PROFILE_HEADERS)
+        bot.register_next_step_handler(msg, get_take_home_pay, PROFILE_HEADERS)
+
+# Get Expense breakdown command
+# Get Expense breakdown command
+@bot.message_handler(commands=['get_expenses_breakdown'])
+def get_expense_breakdown(message):
+    if UserCheck(message) == True:
+        try:
+            if not os.path.exists(EXPENSE_FILE_PATH):
+                bot.send_message(
+                    message.chat.id,
+                    "Expenses file not found. Please add expenses using /add."
+                )
+                return
+
+            # Get requested period
+            command_parts = message.text.split()
+
+            if len(command_parts) > 1:
+                period = command_parts[1].lower()
+            else:
+                period = "all"
+
+            today = datetime.now()
+
+            # Determine requested period
+            if period == "all":
+                filter_type = "all"
+            elif period == "yearly":
+                filter_type = "yearly"
+            elif period == "monthly":
+                filter_type = "monthly"
+            else:
+                # Try to interpret as MM/YY
+                try:
+                    requested_date = datetime.strptime(period, "%m/%y")
+                    filter_type = "specific_month"
+                except ValueError:
+                    bot.send_message(
+                        message.chat.id,
+                        "Invalid period.\n\n"
+                        "Use one of:\n"
+                        "/get_expenses_breakdown all\n"
+                        "/get_expenses_breakdown yearly\n"
+                        "/get_expenses_breakdown monthly\n"
+                        "/get_expenses_breakdown 08/26"
+                    )
+                    return
+            # Read expenses
+            with open(EXPENSE_FILE_PATH, 'r') as f:
+                reader = csv.DictReader(f)
+                expenses = list(reader)
+
+            # Filter expenses for the user
+            user_expenses = [
+                e for e in expenses
+                if e['User'] == message.from_user.first_name
+            ]
+
+            # Filter by date
+            filtered_expenses = []
+            for expense in user_expenses:
+                # CSV format is DD/MM/YY
+                expense_date = datetime.strptime(
+                    expense['Date'],
+                    "%d/%m/%y"
+                )
+
+                if filter_type == "all":
+                    filtered_expenses.append(expense)
+                elif filter_type == "yearly":
+                    if expense_date.year == today.year:
+                        filtered_expenses.append(expense)
+
+                elif filter_type == "monthly":
+                    if (
+                        expense_date.year == today.year
+                        and expense_date.month == today.month
+                    ):
+                        filtered_expenses.append(expense)
+
+                elif filter_type == "specific_month":
+                    if (
+                        expense_date.year == requested_date.year
+                        and expense_date.month == requested_date.month
+                    ):
+                        filtered_expenses.append(expense)
+
+            if not filtered_expenses:
+                bot.send_message(
+                    message.chat.id,
+                    "No expenses found for the requested period."
+                )
+                return
+
+            # Separate shared and personal expenses
+            shared_expenses = [
+                e for e in filtered_expenses
+                if e['isShared'].lower() == 'true'
+            ]
+            personal_expenses = [
+                e for e in filtered_expenses
+                if e['isShared'].lower() != 'true'
+            ]
+            # Calculate personal total
+            total_expense = sum(
+                float(e['Amount'])
+                for e in personal_expenses
+            )
+            # Breakdown by category
+            breakdown = {}
+            for e in personal_expenses:
+                category = e['Category']
+                amount = float(e['Amount'])
+                breakdown[category] = (
+                    breakdown.get(category, 0) + amount
+                )
+            # Determine period name
+            if filter_type == "all":
+                period_name = "All Time"
+            elif filter_type == "yearly":
+                period_name = str(today.year)
+            elif filter_type == "monthly":
+                period_name = today.strftime("%B %Y")
+            else:
+                period_name = requested_date.strftime("%B %Y")
+
+            # Build message
+            breakdown_message = (
+                f"Expense Breakdown - {period_name}\n\n"
+                f"Total Expense: £{total_expense:.2f}\n\n"
+                f"Breakdown by Category:\n"
+            )
+
+            for category, amount in breakdown.items():
+                breakdown_message += (
+                    f"{category}: £{amount:.2f}\n"
+                )
+
+            # Shared expenses
+            if shared_expenses:
+                shared_expenses_breakdown = {}
+                for e in shared_expenses:
+                    category = e['Category']
+                    amount = float(e['Amount'])
+                    shared_expenses_breakdown[category] = (
+                        shared_expenses_breakdown.get(category, 0)
+                        + amount
+                    )
+                shared_total = sum(
+                    float(e['Amount'])
+                    for e in shared_expenses
+                )
+                breakdown_message += (
+                    f"\nShared Expenses Total: £{shared_total:.2f}\n"
+                )
+                for category, amount in shared_expenses_breakdown.items():
+                    breakdown_message += (
+                        f"{category} (Shared): £{amount:.2f}\n"
+                    )
+            bot.send_message(
+                message.chat.id,
+                breakdown_message
+            )
+
+        except Exception as e:
+            bot.send_message(
+                message.chat.id,
+                f"Error retrieving expense breakdown: {e}"
+            )
+
+# get Portfolio command
+@bot.message_handler(commands=['portfolio'])
+def get_portfolio(message):
+    pass
 
 # Setup/Edit Profile command
 @bot.message_handler(commands=['setup_profile', 'edit_profile'])
 def setup_profile(message):
     if UserCheck(message) == True:
-        profile_file_path = 'data/profile.csv'
-        PROFILE_HEADERS = ("Name", "Take Home Pay","Date_added")
         # get take home pay from user
         msg = bot.send_message(message.chat.id, "What is your take home pay?")
-        bot.register_next_step_handler(msg, get_take_home_pay, profile_file_path, PROFILE_HEADERS)
+        bot.register_next_step_handler(msg, get_take_home_pay, PROFILE_HEADERS)
 
 @bot.message_handler(commands=['profile'])
 def get_profile(message):
     if UserCheck(message) == True:
-        profile_file_path = 'data/profile.csv'
-        if os.path.exists(profile_file_path):
-            with open(profile_file_path, 'r') as f:
+        if os.path.exists(PROFILE_FILE_PATH):
+            with open(PROFILE_FILE_PATH, 'r') as f:
                 reader = csv.DictReader(f)
                 profile_data = list(reader)
                 if profile_data:

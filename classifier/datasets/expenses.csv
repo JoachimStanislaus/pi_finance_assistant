@@ -512,7 +512,7 @@ Council,Bills
 Water,Bills
 Octopus elec,Bills
 Tesco Grocerie,Groceries
-Tesco Toilet Paper,Grooming
+Tesco Toilet Paper,Groceries
 Lidl Groceries,Groceries
 Apple Subscription,Bills
 Heinz Tomato Sauce,Groceries
@@ -964,9 +964,7 @@ Stella Breakfast w Nicole in Belgium,Eating Out
 Belgium DONKI w Nicole,Eating Out
 tube belgium,Transportation
 Locker,Travel
-Toilet,Travel
 Drinks w Nicole Antwerp,Social
-Toilet,Travel
 Food while waiting for train back to UK,Eating Out
 Chocolate @ Eurostar,Eating Out
 Water at Eurostar,Eating Out
@@ -1529,13 +1527,10 @@ Tiramisu Cake,Eating Out
 train to budapest that i missed,Travel
 Train to budapest,Travel
 pizza in vienna,Eating Out
-toilet in vienna,Travel
 Fried Rice in Budapest,Eating Out
 Chicken In Asian Store In Budapest,Eating Out
 Aloe Vera in budapest Asian Store,Eating Out
-Toilet in Budapest,Travel
 Drinks and Burger at sports bar in Budapest,Eating Out
-Toilet in Budapest,Travel
 Costa Coffee at Stansted,Eating Out
 Black Sheep Coffee at Heathrow,Eating Out
 Curry & Tofu,Groceries
@@ -1593,6 +1588,7 @@ Bus to Gothenburg Airport,Travel
 Postcard for Nicole,Gifts
 Dior Sauvage & Chanel no5 for Nicole,Gifts
 Bus to Stevenage,Transportation
+toilet paper,Groceries
 Bus to Stevenage,Transportation
 "Tesco, Grapes etc",Groceries
 Train to London,Transportation
@@ -2016,6 +2012,7 @@ Goldmine,Eating Out
 Trainline,Transportation
 Tube,Transportation
 Stevenage Bus,Transportation
+toilet paper,Groceries
 Island Poke,Eating Out
 Train Fine,Transportation
 Tube,Transportation
@@ -2271,3 +2268,14 @@ Yonder,Bills
 Subscription, Bills
 Netflix, Bills
 charlie, Dogs
+vet bills,Dogs
+snoopy vet bills,Dogs
+dog shampoo,Dogs
+poop bags,Dogs
+snoopy vet,Dogs
+dog,Dogs
+Dogs,Dogs
+vet,Dogs
+vet bills,Dogs
+vet bills,Dogs
+toilet paper,Groceries
