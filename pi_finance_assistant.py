@@ -2,17 +2,18 @@ from collections.abc import Mapping
 import os
 import csv
 from dotenv import load_dotenv
+from helper import add_data_to_csv, read_csv, today_date, add_data_to_csv
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 import json
 import telebot
 from datetime import datetime
-
+import pandas as pd
 load_dotenv()
 
 base_tele_ids = os.getenv("BASE_TELE_USER_ID")
-
-bot = telebot.TeleBot(os.getenv("TELE_API_KEY"))
 TelegramUsers = json.loads(base_tele_ids) if base_tele_ids else []
+bot = telebot.TeleBot(os.getenv("TELE_API_KEY"))
+
 PROFILE_HEADERS = ("Name", "Take Home Pay","Date_added")
 PROFILE_FILE_PATH = 'data/profile.csv'
 EXPENSE_FILE_PATH = 'data/expenses.csv'
@@ -39,63 +40,13 @@ CATEGORIES = ("Eating Out",
 "Learning"
 )
 
-
-#Get today's date in integer format
-def today_date():
-    # Creating a datetime object so we can test.
-    a = datetime.now()
-    # Converting a to string in the desired format (YYYYMMDD) using strftime
-    # and then to int.
-    a = str(a.strftime('%d/%m/%y'))
-    return a
-
 #Checks if User is Authorized or not
-def UserCheck(message):
+def UserCheck(message, TelegramUsers):
     if message.from_user.id in TelegramUsers:    
         return True
     else:
         bot.reply_to(message, "Unauthorized User")
         return False
-
-# Function to create and manage expenses.csv file
-def create_csv_file_if_not_exists(file_path,headers):
-    """Creates/updates the specified CSV file with proper headers and data structure."""
-    try:
-        # Check if file exists and has data
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            with open(file_path, 'r', newline='') as f:
-                reader = csv.reader(f)
-                existing_data = list(reader)
-                if not existing_data or headers not in existing_data[0]:
-                    # File is empty or headers missing, add them back
-                    with open(file_path, 'w', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow(headers)
-                        # Preserve any existing data rows
-                        for row in existing_data[1:]:
-                            writer.writerow(row)
-        else:
-            # Create new file with headers
-            with open(file_path, 'w', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(headers)
-        return True
-        
-    except Exception as e:
-        return False
-
-def add_data_to_csv(file_path, data: Mapping[str, str], headers: list) -> bool:
-    """Adds a new record to the CSV file."""
-    create_csv_file_if_not_exists(file_path, headers)
-    try:
-        with open(file_path, 'a', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(data.values())
-        return True
-    except Exception as e:
-        print(f"✗ Error adding data: {e}")
-        return False
-
 
 def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
     """Appends a new expense record to the CSV file."""
@@ -116,7 +67,7 @@ def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
         print(f"✗ Error appending expense: {e}")
         return False
 
-def resolve_fields_from_description(description):
+def resolve_expense_fields_from_description(description):
     """Resolves category, isShared from a given description string."""
     from classifier.predict import predict_category
     
@@ -162,7 +113,7 @@ def get_description(message, expense):
 
 def get_expense(message, expense):
     # Resolve category and isShared from description
-    category, isShared = resolve_fields_from_description(expense.get('description'))
+    category, isShared = resolve_expense_fields_from_description(expense.get('description'))
     expense['category'] = category
     expense['isShared'] = isShared
     expense['date'] = today_date()
@@ -213,15 +164,10 @@ def edit_expense(message):
             expense_id = command_parts[1]
 
             # Read expenses
-            with open(EXPENSE_FILE_PATH, 'r') as f:
-                reader = csv.DictReader(f)
-                expenses = list(reader)
+            df = read_csv(EXPENSE_FILE_PATH)
 
             # Find the expense
-            expense_to_edit = next(
-                (e for e in expenses if e['expense_id'] == expense_id),
-                None
-            )
+            expense_to_edit = df[df['expense_id'] == expense_id].iloc[0] if not df[df['expense_id'] == expense_id].empty else None
 
             if not expense_to_edit:
                 bot.send_message(
@@ -259,26 +205,18 @@ def edit_expense(message):
                 f"Error editing expense: {e}"
             )
 
-
 # Handle category button selection
-@bot.callback_query_handler(
-    func=lambda call: call.data.startswith("edit_category|")
-)
+@bot.callback_query_handler(func=lambda call: call.data.startswith("edit_category|"))
 def handle_edit_category(call):
     try:
         # Extract expense ID and category
         _, expense_id, new_category = call.data.split("|", 2)
 
         # Read expenses
-        with open(EXPENSE_FILE_PATH, 'r') as f:
-            reader = csv.DictReader(f)
-            expenses = list(reader)
+        df = read_csv(EXPENSE_FILE_PATH)
 
         # Find expense
-        expense_to_edit = next(
-            (e for e in expenses if e['expense_id'] == expense_id),
-            None
-        )
+        expense_to_edit = df[df['expense_id'] == expense_id].iloc[0] if not df[df['expense_id'] == expense_id].empty else None
 
         if not expense_to_edit:
             bot.answer_callback_query(
@@ -293,16 +231,7 @@ def handle_edit_category(call):
         expense_to_edit['Category'] = new_category
 
         # Write updated expenses back to CSV
-        with open(EXPENSE_FILE_PATH, 'w', newline='') as f:
-            fieldnames = expenses[0].keys()
-
-            writer = csv.DictWriter(
-                f,
-                fieldnames=fieldnames
-            )
-
-            writer.writeheader()
-            writer.writerows(expenses)
+        df.to_csv(EXPENSE_FILE_PATH, index=False)
 
         # Remove the buttons
         bot.edit_message_reply_markup(
@@ -323,6 +252,7 @@ def handle_edit_category(call):
             f"Expense: {expense_to_edit['Description']}\n"
             f"Category: {old_category} → {new_category}"
         )
+        add_data_to_csv('classifier/edited_expenses.csv', {'description': expense_to_edit["Description"], 'category': new_category}, ['description', 'category'])
 
     except Exception as e:
         bot.answer_callback_query(
@@ -566,6 +496,14 @@ def send_welcome(message):
     if UserCheck(message) == True:
             bot.send_message(message.chat.id, "Welcome {}\nUser: {}  ".format(message.from_user.first_name,message.from_user.id))
             bot.reply_to(message, "/start & /help to start and get commands\n/add to add record")
+
+@bot.message_handler(func=lambda message: True)
+def handle_unhandled_message(message):
+    print(f"Unhandled message: {message.text}")
+
+    # Later:
+    # query = parse_query(message.text)
+    # route_query(query)
 
 print("I'm listening...")
 bot.infinity_polling()

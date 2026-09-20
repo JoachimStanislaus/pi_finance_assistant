@@ -70,13 +70,16 @@ def preprocess_text(text):
 # Training
 # ============================================================
 
-def train_classifier(csv_path):
+# I want to give 2 paths so that I can train the model on the original dataset and also on the edited dataset. The edited dataset will be used to improve the model over time.
+def train_classifier(csv_path, edited_csv_path=None):
 
     print("=" * 60)
     print("Loading training data")
     print("=" * 60)
 
     df = pd.read_csv(csv_path)
+    edited_df = pd.read_csv(edited_csv_path) if edited_csv_path else pd.DataFrame()
+    df = pd.concat([df, edited_df], ignore_index=True)
 
     print(f"Loaded {len(df)} rows")
 
@@ -333,5 +336,6 @@ if __name__ == "__main__":
     )
 
     train_classifier(
-        csv_path
+        csv_path,
+        edited_csv_path="/Users/joachim/Desktop/Coding/pi_finance_assistant/classifier/edited_expenses.csv"
     )
