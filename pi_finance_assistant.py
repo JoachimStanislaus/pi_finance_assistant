@@ -29,33 +29,20 @@ def UserCheck(message):
         return True
     else:
         bot.reply_to(message, "Unauthorized User")
-        print(message.from_user.id)
         return False
 
 # Function to create and manage expenses.csv file
-def create_csv_file(file_name):
+def create_csv_file_if_not_exists(file_path,headers):
     """Creates/updates the specified CSV file with proper headers and data structure."""
-    csv_path = file_name
-
-    # Define CSV headers for expense tracking
-    headers = [
-        "Date", 
-        "Category", 
-        "Description", 
-        "Amount",
-        "isShared",
-        "User",
-    ]
-            
     try:
         # Check if file exists and has data
-        if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
-            with open(csv_path, 'r', newline='') as f:
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            with open(file_path, 'r', newline='') as f:
                 reader = csv.reader(f)
                 existing_data = list(reader)
                 if not existing_data or headers not in existing_data[0]:
                     # File is empty or headers missing, add them back
-                    with open(csv_path, 'w', newline='') as f:
+                    with open(file_path, 'w', newline='') as f:
                         writer = csv.writer(f)
                         writer.writerow(headers)
                         # Preserve any existing data rows
@@ -63,7 +50,7 @@ def create_csv_file(file_name):
                             writer.writerow(row)
         else:
             # Create new file with headers
-            with open(csv_path, 'w', newline='') as f:
+            with open(file_path, 'w', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
         return True
@@ -71,24 +58,31 @@ def create_csv_file(file_name):
     except Exception as e:
         return False
 
-
-
-def append_expense_to_csv(file_name, expense: Mapping[str, str]) -> bool:
-    """Appends a new expense record to the CSV file."""
-    csv_path = file_name
-    
+def add_data_to_csv(file_path, data: Mapping[str, str], headers: list) -> bool:
+    """Adds a new record to the CSV file."""
+    create_csv_file_if_not_exists(file_path, headers)
     try:
-        with open(csv_path, 'a', newline='') as f:
+        with open(file_path, 'a', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow([
-                expense.get('date'),
-                expense.get('category'),
-                expense.get('description'),
-                expense.get('amount'),
-                expense.get('isShared'),
-                expense.get('user')
-            ])
-        
+            writer.writerow(data.values())
+        return True
+    except Exception as e:
+        print(f"✗ Error adding data: {e}")
+        return False
+
+
+def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
+    """Appends a new expense record to the CSV file."""
+    EXPENSE_FIELDS = (
+            "Date", 
+            "Category", 
+            "Description", 
+            "Amount",
+            "isShared",
+            "User",
+        )    
+    try:
+        add_data_to_csv(file_path, expense, EXPENSE_FIELDS)
         return True
         
     except Exception as e:
@@ -152,10 +146,71 @@ def get_expense(message, expense):
     expense['user'] = message.from_user.first_name
 
     # Append to CSV
-    if append_expense_to_csv('expenses.csv', expense):
+    if append_expense_to_csv('data/expenses.csv', expense):
         bot.send_message(message.chat.id, "Expense added successfully!")
     else:
         bot.send_message(message.chat.id, "Failed to add expense. Please try again.")
+
+def get_take_home_pay(message, profile_file_path, PROFILE_HEADERS):
+    try:
+        take_home_pay = float(message.text)
+        # Update the profile.csv with the take home pay and date added
+        date_added = today_date()
+        add_data_to_csv(profile_file_path, {"Name": message.from_user.first_name, "Take Home Pay": take_home_pay, "Date_added": date_added}, PROFILE_HEADERS)
+        bot.send_message(message.chat.id, "Profile updated successfully!")
+    except ValueError:
+        msg = bot.send_message(
+            message.chat.id,
+            "Please enter a valid amount for take home pay, e.g. 2500.00"
+        )
+        bot.register_next_step_handler(msg, get_take_home_pay, profile_file_path, PROFILE_HEADERS)
+
+# Setup/Edit Profile command
+@bot.message_handler(commands=['setup_profile', 'edit_profile'])
+def setup_profile(message):
+    if UserCheck(message) == True:
+        profile_file_path = 'data/profile.csv'
+        PROFILE_HEADERS = ("Name", "Take Home Pay","Date_added")
+        # get take home pay from user
+        msg = bot.send_message(message.chat.id, "What is your take home pay?")
+        bot.register_next_step_handler(msg, get_take_home_pay, profile_file_path, PROFILE_HEADERS)
+
+@bot.message_handler(commands=['profile'])
+def get_profile(message):
+    if UserCheck(message) == True:
+        profile_file_path = 'data/profile.csv'
+        if os.path.exists(profile_file_path):
+            with open(profile_file_path, 'r') as f:
+                reader = csv.DictReader(f)
+                profile_data = list(reader)
+                if profile_data:
+                    profile_data = sorted(profile_data, key=lambda x: (x['Name'], x['Date_added']), reverse=True)
+                    profile_data = [p for p in profile_data if p['Name'] == message.from_user.first_name]
+                    if not profile_data:
+                        bot.send_message(message.chat.id, "Profile not found for your user. Please set up your profile using /setup_profile.")
+                        return
+                    latest_profile = profile_data[-1]
+                    bot.send_message(
+                        message.chat.id,
+                        f"Name: {latest_profile['Name']}\nTake Home Pay: {latest_profile['Take Home Pay']}\nDate Added: {latest_profile['Date_added']}"
+                    )
+                else:
+                    bot.send_message(message.chat.id, "Profile is empty. Please set up your profile using /setup_profile.")
+        else:
+            bot.send_message(message.chat.id, "Profile not found. Please set up your profile using /setup_profile.")
+
+# Retrieve all data from data folder and return file to chat
+@bot.message_handler(commands=['get_all_data'])
+def retrieve_all_data(message):
+    if UserCheck(message) == True:
+        try:
+            for file in os.listdir('data'):
+                # return any file in data
+                if file.endswith('.csv'):
+                    with open(os.path.join('data', file), 'rb') as f:
+                        bot.send_document(message.chat.id, f)
+        except Exception as e:
+            bot.send_message(message.chat.id, f"Error retrieving data: {e}")
 
 #Handle '/add' command to add a new expense record
 @bot.message_handler(commands=['add'])
@@ -168,13 +223,9 @@ def add_expense(message):
 # Handle '/start' and '/help'
 @bot.message_handler(commands=['help', 'start'])
 def send_welcome(message):
-    print("User: {}  ".format(message.from_user.id))
     if UserCheck(message) == True:
             bot.send_message(message.chat.id, "Welcome {}\nUser: {}  ".format(message.from_user.first_name,message.from_user.id))
             bot.reply_to(message, "/start & /help to start and get commands\n/add to add record")
-    else:
-        print("Unauthorized User: {}  ".format(message.from_user.id))
-        pass
 
 print("I'm listening...")
 bot.infinity_polling()

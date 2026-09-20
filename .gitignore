@@ -1,5 +1,5 @@
 .env
 .venv
 update.sh
-expenses.csv
+data/
 onnx-converter
