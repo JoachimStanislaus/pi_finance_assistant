@@ -38,6 +38,7 @@ def execute_jobs():
     Executes one time jobs on startup
     """
     update_expenses_from_history()
+    remove_pound_sign_from_amount()
     pass
 
 @job_executed("update_expenses_from_history_3")
@@ -57,3 +58,12 @@ def update_expenses_from_history():
     # Merge the two dataframes, the new rows from history_df should be added to expenses_df, and the result should be saved to expenses.csv. 
     merged_df = pd.concat([expenses_df, history_df], ignore_index=True)
     merged_df.to_csv('data/expenses.csv', index=False)
+
+@job_executed("remove_pound_sign_from_amount_1")
+def remove_pound_sign_from_amount():
+    """
+    Removes the pound sign from the amount column in expenses.csv
+    """
+    expenses_df = pd.read_csv('data/expenses.csv')
+    expenses_df['Amount'] = expenses_df['Amount'].str.replace('£', '', regex=False)
+    expenses_df.to_csv('data/expenses.csv', index=False)
