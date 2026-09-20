@@ -247,8 +247,8 @@ def edit_expense(message):
 
             bot.send_message(
                 message.chat.id,
-                f"Expense: {expense_to_edit['description']}\n"
-                f"Current category: {expense_to_edit['category']}\n\n"
+                f"Expense: {expense_to_edit['Description']}\n"
+                f"Current category: {expense_to_edit['Category']}\n\n"
                 f"Select the new category:",
                 reply_markup=markup
             )
@@ -287,10 +287,10 @@ def handle_edit_category(call):
             )
             return
 
-        old_category = expense_to_edit['category']
+        old_category = expense_to_edit['Category']
 
         # Update category
-        expense_to_edit['category'] = new_category
+        expense_to_edit['Category'] = new_category
 
         # Write updated expenses back to CSV
         with open(EXPENSE_FILE_PATH, 'w', newline='') as f:
@@ -320,7 +320,7 @@ def handle_edit_category(call):
         bot.send_message(
             call.message.chat.id,
             f"Category updated successfully!\n\n"
-            f"Expense: {expense_to_edit['description']}\n"
+            f"Expense: {expense_to_edit['Description']}\n"
             f"Category: {old_category} → {new_category}"
         )
 
