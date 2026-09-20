@@ -3,6 +3,7 @@ import os
 import csv
 from dotenv import load_dotenv
 from helper import add_data_to_csv, read_csv, today_date, add_data_to_csv
+from jobs import execute_jobs
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 import json
 import telebot
@@ -41,7 +42,7 @@ CATEGORIES = ("Eating Out",
 )
 
 #Checks if User is Authorized or not
-def UserCheck(message, TelegramUsers):
+def UserCheck(message):
     if message.from_user.id in TelegramUsers:    
         return True
     else:
@@ -506,4 +507,5 @@ def handle_unhandled_message(message):
     # route_query(query)
 
 print("I'm listening...")
+execute_jobs()
 bot.infinity_polling()
