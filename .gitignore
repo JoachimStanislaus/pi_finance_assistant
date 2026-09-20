@@ -3,3 +3,4 @@
 update.sh
 data/
 onnx-converter
+classifier/__pycache__
