@@ -41,7 +41,7 @@ def execute_jobs():
     update_expenses_from_history()
     pass
 
-@job_executed("update_expenses_from_history_1")
+@job_executed("update_expenses_from_history_2")
 def update_expenses_from_history():
     """
     Updates the expenses.csv file with new data from history.csv
