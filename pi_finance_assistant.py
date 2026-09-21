@@ -59,7 +59,7 @@ def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
             "Amount": expense.get("amount", ""),
             "isShared": expense.get("isShared", ""),
             "User": expense.get("user", ""),
-            "expense_id": expense.get("id", ""),
+            "expense_id": expense.get("expense_id", ""),
         }
         add_data_to_csv(file_path, format_expense, EXPENSE_FIELDS)
         return True
@@ -119,12 +119,12 @@ def get_expense(message, expense):
     expense['isShared'] = isShared
     expense['date'] = today_date()
     expense['user'] = message.from_user.first_name
-    expense['id'] = generate_expense_id()
+    expense['expense_id'] = generate_expense_id()
 
     # Append to CSV
     if append_expense_to_csv(EXPENSE_FILE_PATH, expense):
         bot.send_message(message.chat.id, f"Expense added successfully! (Predicted Category: {expense['category']}, if incorrect, please edit the expense manually.)")
-        bot.send_message(message.chat.id, f"/edit {expense['id']}")
+        bot.send_message(message.chat.id, f"/edit {expense['expense_id']}")
     else:
         bot.send_message(message.chat.id, "Failed to add expense. Please try again.")
 
@@ -167,15 +167,21 @@ def edit_expense(message):
             # Read expenses
             df = read_csv(EXPENSE_FILE_PATH)
 
-            # Find the expense
-            expense_to_edit = df[df['expense_id'] == expense_id].iloc[0] if not df[df['expense_id'] == expense_id].empty else None
+            # Convert expense IDs to strings
+            df['expense_id'] = df['expense_id'].astype(str)
+            expense_id = str(expense_id)
 
-            if not expense_to_edit:
+            # Find the expense
+            matching_expenses = df[df['expense_id'] == expense_id]
+
+            if matching_expenses.empty:
                 bot.send_message(
                     message.chat.id,
                     f"No expense found with ID: {expense_id}"
                 )
                 return
+
+            expense_to_edit = matching_expenses.iloc[0]
 
             # Create category buttons
             markup = InlineKeyboardMarkup(row_width=2)
@@ -216,15 +222,20 @@ def handle_edit_category(call):
         # Read expenses
         df = read_csv(EXPENSE_FILE_PATH)
 
-        # Find expense
-        expense_to_edit = df[df['expense_id'] == expense_id].iloc[0] if not df[df['expense_id'] == expense_id].empty else None
+        # Convert expense IDs to strings
+        df['expense_id'] = df['expense_id'].astype(str)
+        expense_id = str(expense_id)
 
-        if not expense_to_edit:
+        # Find the expense
+        matching_expenses = df[df['expense_id'] == expense_id]
+
+        if matching_expenses.empty:
             bot.answer_callback_query(
                 call.id,
                 "Expense not found."
             )
             return
+        expense_to_edit = matching_expenses.iloc[0]
 
         old_category = expense_to_edit['Category']
 
@@ -253,7 +264,7 @@ def handle_edit_category(call):
             f"Expense: {expense_to_edit['Description']}\n"
             f"Category: {old_category} → {new_category}"
         )
-        add_data_to_csv('classifier/edited_expenses.csv', {'description': expense_to_edit["Description"], 'category': new_category}, ['description', 'category'])
+        add_data_to_csv('classifier/datasets/edited_expenses.csv', {'description': expense_to_edit["Description"], 'category': new_category}, ['description', 'category'])
 
     except Exception as e:
         bot.answer_callback_query(

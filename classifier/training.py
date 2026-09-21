@@ -337,5 +337,5 @@ if __name__ == "__main__":
 
     train_classifier(
         csv_path,
-        edited_csv_path="/Users/joachim/Desktop/Coding/pi_finance_assistant/classifier/edited_expenses.csv"
+        edited_csv_path="/Users/joachim/Desktop/Coding/pi_finance_assistant/classifier/datasets/edited_expenses.csv"
     )
