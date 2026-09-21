@@ -2,7 +2,7 @@
 from collections.abc import Mapping
 import csv
 import os
-from turtle import pd
+import pandas as pd
 from datetime import datetime
 
 
