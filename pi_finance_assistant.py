@@ -85,6 +85,8 @@ def resolve_expense_fields_from_description(description):
         # if nicole or joachim is in the description and treat is not in the description then it is shared
         if any(keyword.lower() in description.lower() for keyword in ('nicole', 'joachim')) and 'treat' not in description.lower():
             is_shared = True
+        elif any(keyword.lower() in description.lower() for keyword in ('nicole', 'joachim')) and 'treat' in description.lower():
+            is_shared = False
         else:
             is_shared = any(keyword.lower() in description.lower() for keyword in shared_keywords)
     
