@@ -69,17 +69,20 @@ def remove_pound_sign_from_amount():
     expenses_df['Amount'] = expenses_df['Amount'].str.replace('£', '', regex=False)
     expenses_df.to_csv('data/expenses.csv', index=False)
 
-@job_executed("convert_amount_to_float_2")
+@job_executed("convert_amount_to_float_3")
 def convert_amount_to_float():
     """
-    Converts the amount column in expenses.csv to float
+    Converts the Amount column in expenses.csv to float.
+    Removes £ symbols, commas, and whitespace.
     """
     expenses_df = pd.read_csv('data/expenses.csv')
 
     expenses_df['Amount'] = (
         expenses_df['Amount']
         .astype(str)
+        .str.replace('£', '', regex=False)
         .str.replace(',', '', regex=False)
+        .str.strip()
         .astype(float)
     )
 
