@@ -42,7 +42,7 @@ def execute_jobs():
     convert_amount_to_float()
     pass
 
-@job_executed("update_expenses_from_history_3")
+@job_executed("update_expenses_from_history_4")
 def update_expenses_from_history():
     """
     Updates the expenses.csv file with new data from history.csv
