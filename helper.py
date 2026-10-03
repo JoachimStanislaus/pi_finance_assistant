@@ -4,6 +4,7 @@ import csv
 import os
 import pandas as pd
 from datetime import datetime
+from constants import TelegramUsers, bot
 
 
 def today_date():
@@ -65,3 +66,15 @@ def read_csv(file_path):
     except Exception as e:
         print(f"✗ Error reading CSV: {e}")
         return pd.DataFrame()  # Return an empty DataFrame on error
+
+def generate_expense_id():
+    """Generates a unique ID for each expense based on the current timestamp."""
+    return datetime.now().strftime("%Y%m%d%H%M%S%f")
+
+#Checks if User is Authorized or not
+def UserCheck(message):
+    if message.from_user.id in TelegramUsers:    
+        return True
+    else:
+        bot.reply_to(message, "Unauthorized User")
+        return False
