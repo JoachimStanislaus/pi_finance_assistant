@@ -78,3 +78,12 @@ def UserCheck(message):
     else:
         bot.reply_to(message, "Unauthorized User")
         return False
+
+def send_message(chat_id, text):
+    """Sends a message to the specified chat ID."""
+    try:
+        bot.send_message(chat_id, text)
+        return True
+    except Exception as e:
+        print(f"✗ Error sending message: {e}")
+        return False

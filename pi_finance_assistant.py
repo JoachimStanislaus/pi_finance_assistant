@@ -397,11 +397,6 @@ def handle_unhandled_message(message):
         if not resp:
             bot.send_message(message.chat.id, "Failed to parse message")
             return
-        
-
-    # Later:
-    # query = parse_query(message.text)
-    
 
 print("I'm listening...")
 execute_jobs()

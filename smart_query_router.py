@@ -4,6 +4,9 @@ import re
 from enum import Enum
 
 from expenses import get_expense
+import expenses
+from helper import send_message
+from history import get_user_last_num_expenses
 
 EXPENSE_KEYWORDS = [
     "expense",
@@ -87,6 +90,7 @@ class Route(Enum):
     UNKNOWN = "UNKNOWN"
     EXPENSE = "EXPENSE"
     PORTFOLIO = "PORTFOLIO"
+    HISTORY = "HISTORY"
 
 class Expense_Intent(Enum):
     UNKNOWN = "UNKNOWN"
@@ -308,6 +312,21 @@ def resolve_expense_query(query):
 def resolve_portfolio_query(query):
     pass
 
+def resolve_history_query(query):
+    get_user_last_num_expenses(query.from_user.first_name, num_expenses=5)
+
+    message = "Last 5 expenses:\n\n"
+    for _, expense in expenses.iterrows():
+        message += (
+            f"{expense['Date']} | "
+            f"{expense['Description']} | "
+            f"{expense['Category']} | "
+            f"£{expense['Amount']:.2f}\n"
+        )
+
+    send_message(message.chat.id, message)
+    return 
+
 def route_query(query):
     """
     Main router to route queries -> eventual output func
@@ -319,6 +338,8 @@ def route_query(query):
         resolved_query = resolve_expense_query(query)
     elif parsed_route == Route.PORTFOLIO:
         resolved_query = resolve_portfolio_query(query)
+    elif parsed_route == Route.HISTORY:
+        resolved_query = resolve_history_query(query)
     else:
         pass
     return resolved_query
