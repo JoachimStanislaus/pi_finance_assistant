@@ -50,6 +50,14 @@ PORTFOLIO_KEYWORDS = [
     "loss",
 ]
 
+HISTORY_KEYWORDS = [
+    "history",
+    "last",
+    "recent",
+    "previous",
+    "earlier",
+]
+
 ADD_KEYWORDS = [
     "add",
     "spent",
@@ -369,10 +377,16 @@ def route_parser(message):
         if re.search(r"\b" + re.escape(keyword) + r"\b", text):
             portfolio_score += 1
 
+    for keyword in HISTORY_KEYWORDS:
+        if re.search(r"\b" + re.escape(keyword) + r"\b", text):
+            history_score += 1
+
     # Determine route
     if expense_score > portfolio_score:
         return Route.EXPENSE
     elif portfolio_score > expense_score:
         return Route.PORTFOLIO
+    elif history_score > 0:
+        return Route.HISTORY
     else:
         return Route.UNKNOWN
