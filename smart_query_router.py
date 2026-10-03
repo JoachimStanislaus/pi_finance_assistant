@@ -321,7 +321,7 @@ def resolve_portfolio_query(query):
     pass
 
 def resolve_history_query(query):
-    get_user_last_num_expenses(query.from_user.first_name, num_expenses=5)
+    expenses = get_user_last_num_expenses(query.from_user.first_name, num_expenses=5)
 
     message = "Last 5 expenses:\n\n"
     for _, expense in expenses.iterrows():
@@ -332,8 +332,8 @@ def resolve_history_query(query):
             f"£{expense['Amount']:.2f}\n"
         )
 
-    send_message(message.chat.id, message)
-    return 
+    send_message(query.chat.id, message)
+    return message
 
 def route_query(query):
     """
@@ -366,6 +366,7 @@ def route_parser(message):
 
     expense_score = 0
     portfolio_score = 0
+    history_score = 0
 
     # Check expense keywords
     for keyword in EXPENSE_KEYWORDS:
