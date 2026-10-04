@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import re
 from enum import Enum
 
-from expenses import get_expense
+from expenses import delete_expense, get_expense
 import expenses
 from helper import send_message
 from history import get_user_last_num_expenses
@@ -311,7 +311,16 @@ def resolve_expense_query(query):
     elif expense_intent == Expense_Intent.QUERY:
         pass
     elif expense_intent == Expense_Intent.DELETE:
-        pass
+        expense_id = 0
+        expense_id_pattern = r"\b\d{6}\b"
+        expense_id_match = re.search(expense_id_pattern, query.text)
+        if expense_id_match:
+            expense_id = expense_id_match.group(0)
+        deleted = delete_expense(expense_id)
+        if deleted:
+            send_message(query.chat.id, f"Expense with ID {expense_id} has been deleted.")
+        else:
+            send_message(query.chat.id, f"No expense found with ID: {expense_id}")
     else:
         return
     return resolved_query

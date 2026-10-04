@@ -1,6 +1,7 @@
 from constants import bot, EXPENSE_FILE_PATH, EXPENSE_FIELDS
 from helper import today_date, generate_expense_id, today_date, add_data_to_csv
 from collections.abc import Mapping
+import pandas as pd
 
 def get_amount(message, expense):
     try:
@@ -58,6 +59,35 @@ def append_expense_to_csv(file_path, expense: Mapping[str, str]) -> bool:
     except Exception as e:
         print(f"✗ Error appending expense: {e}")
         return False
+
+def delete_expense(expense_id):
+    """
+    Deletes an expense from the CSV using its expense_id.
+
+    Returns:
+        True if an expense was deleted.
+        False if the expense_id was not found.
+    """
+
+    expenses_df = pd.read_csv(EXPENSE_FILE_PATH)
+
+    # Find matching expense
+    matching_expense = expenses_df[
+        expenses_df["expense_id"] == expense_id
+    ]
+
+    if matching_expense.empty:
+        return False
+
+    # Remove the matching expense
+    expenses_df = expenses_df[
+        expenses_df["expense_id"] != expense_id
+    ]
+
+    # Save updated CSV
+    expenses_df.to_csv(EXPENSE_FILE_PATH, index=False)
+
+    return True
 
 def resolve_expense_fields_from_description(description):
     """Resolves category, isShared from a given description string."""
