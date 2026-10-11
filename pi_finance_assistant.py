@@ -107,7 +107,7 @@ def handle_edit_category(call):
         expense_id = str(expense_id)
 
         # Find the expense
-        matching_expenses = df[df['expense_id'] == expense_id]
+        matching_expenses = df.index[df["expense_id"] == expense_id]
 
         if matching_expenses.empty:
             bot.answer_callback_query(
@@ -115,12 +115,9 @@ def handle_edit_category(call):
                 "Expense not found."
             )
             return
-        expense_to_edit = matching_expenses.iloc[0]
-
-        old_category = expense_to_edit['Category']
-
-        # Update category
-        expense_to_edit['Category'] = new_category
+        row_index = matching_expenses[0]
+        old_category = df.loc[row_index, "Category"]
+        df.loc[row_index, "Category"] = new_category
 
         # Write updated expenses back to CSV
         df.to_csv(EXPENSE_FILE_PATH, index=False)
@@ -141,10 +138,10 @@ def handle_edit_category(call):
         bot.send_message(
             call.message.chat.id,
             f"Category updated successfully!\n\n"
-            f"Expense: {expense_to_edit['Description']}\n"
+            f"Expense: {df.loc[row_index, 'Description']}\n"
             f"Category: {old_category} → {new_category}"
         )
-        add_data_to_csv('classifier/datasets/edited_expenses.csv', {'description': expense_to_edit["Description"], 'category': new_category}, ['description', 'category'])
+        add_data_to_csv('classifier/datasets/edited_expenses.csv', {'description': df.loc[row_index, 'Description'], 'category': new_category}, ['description', 'category'])
 
     except Exception as e:
         bot.answer_callback_query(
