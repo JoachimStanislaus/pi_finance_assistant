@@ -117,6 +117,7 @@ def handle_edit_category(call):
             return
         row_index = matching_expenses[0]
         old_category = df.loc[row_index, "Category"]
+        description = df.loc[row_index, "Description"]
         df.loc[row_index, "Category"] = new_category
 
         # Write updated expenses back to CSV
@@ -138,10 +139,10 @@ def handle_edit_category(call):
         bot.send_message(
             call.message.chat.id,
             f"Category updated successfully!\n\n"
-            f"Expense: {df.loc[row_index, 'Description']}\n"
+            f"Expense: {description}\n"
             f"Category: {old_category} → {new_category}"
         )
-        add_data_to_csv('classifier/datasets/edited_expenses.csv', {'description': df.loc[row_index, 'Description'], 'category': new_category}, ['description', 'category'])
+        add_data_to_csv('classifier/datasets/edited_expenses.csv', {'description': description, 'category': new_category}, ['description', 'category'])
 
     except Exception as e:
         bot.answer_callback_query(
